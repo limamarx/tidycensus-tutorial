@@ -1,0 +1,115 @@
+---
+title: "Introduction to Tidy Census"
+author: "Connor Gilroy and Neal Marquez"
+date: "2/2/2020"
+output: html_document
+---
+
+# What is `tidycensus`?
+
+`tidycensus` is an `R` package that allows users to interface with the US Census Bureau's decennial Census and five-year American Community __APIs__ and return tidyverse-ready data frames.
+
+# The census has an API???
+
+Yes but with limitations. While the Census does offer programatic access to some of its data products it is far from comprehensive and even for the ones it does offer access to its not temporally comprehensive. You can see a complete list of the available APIs [here](https://www.census.gov/data/developers/data-sets.html) and even request new APIs to be made available.
+
+### Before `tidycensus`
+
+```{R load, message=FALSE, warning=FALSE}
+library(httr)
+library(tidyverse)
+library(jsonlite)
+
+# For this tutorial you should have obtained a census API key
+# you can replace the line below with your own key 
+# myKey <- "my_census_api_key"
+myKEY <- read_json("../hall_replication_study/keys/acs.json")$api_key
+
+url  <- "https://api.census.gov"
+path <- "/data/2018/acs/acs1/"
+query <- paste0("?get=NAME,group(B01001)&for=state&key=", myKEY)
+
+callMAT <- fromJSON(paste0(url, path, query))
+colnames(callMAT) <- callMAT[1,]
+
+as_tibble(callMAT)[2:nrow(callMAT),1:3] %>%
+    mutate(B01001_001E = as.numeric(B01001_001E)) %>%
+    arrange(NAME)
+```
+
+### Using `tidycensus`
+
+```{R message=FALSE, warning=FALSE}
+library(tidycensus)
+library(sf)
+library(mapview)
+census_api_key(myKEY)
+
+get_acs(
+    geography = "state", variables = c("Total Population" = "B01001_001"),
+    year = 2018, survey = "acs1")
+```
+
+# When and when not to use the `tidycensus` api
+
+### For you if...
+
+1. Use `R` as your primary workimg environment    
+2. Want a fully contained reproducible example  
+3. Working with relatively few years of data  
+4. Want easy access to maps  
+
+### Try something else if...
+
+1. The API doesn't contain your desired product (pre 2011 ACS & pre 90 census)  
+2. Need access to microdata :(  
+
+# Lets try an example
+
+For this tutorial we will run through an example of how you would go about getting data from the census API when you have a research idea but aren't sure what the proper codes are for a given census year or ACS. For this example we will use the 2018 ACS 5 year to get information about the educational attainment of census tracts in king county. 
+
+```{R message=FALSE, warning=FALSE}
+# Download the Variable dictionary
+var_df <- load_variables(2018, "acs5", cache = TRUE)
+
+# Use the View function to see where educational attainment variables are
+# SEARCH in concept "Educational Attainment"
+# then narrow down using the name field B15003_02
+
+var_selection <- c(Total = "B15003_001", Bachelor = "B15003_022")
+
+tmp <- capture.output(raw_tract_edu_df <- get_acs(
+    "tract",
+    variables = var_selection, 
+    state = "WA",
+    county = "King",
+    geometry = TRUE,
+    cache_table = TRUE))
+
+```
+
+
+## Manipulating the Data or: How I Learned to Stop Worrying and Love the `tidyverse`  
+
+```{R message=FALSE, warning=FALSE}
+tract_edu_df <- raw_tract_edu_df %>%
+    select(-moe) %>% 
+    spread(key = variable, value = estimate) %>%
+    mutate(college_completion_percent = Bachelor / Total)
+
+ggplot(tract_edu_df, aes(x=college_completion_percent)) +
+    geom_histogram() +
+    theme_classic()
+```
+
+```{R message=FALSE, warning=FALSE}
+ggplot(tract_edu_df) +
+    geom_sf(aes(fill = college_completion_percent)) +
+    scale_fill_viridis_c() +
+    theme_void()
+```
+
+```{R message=FALSE, warning=FALSE}
+mapview(tract_edu_df, zcol = "college_completion_percent", legend = TRUE)
+```
+
