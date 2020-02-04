@@ -2,8 +2,19 @@
 title: "Introduction to Tidy Census"
 author: "Connor Gilroy and Neal Marquez"
 date: "2/2/2020"
-output: html_document
+output: 
+    html_document: 
+        theme: cosmo
+        highlight: tango
+        css: styles.css
+        fig_width: 6
+        toc: true
+        toc_float: true
 ---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(fig.align = "center")
+```
 
 # What is `tidycensus`?
 
@@ -42,7 +53,7 @@ as_tibble(callMAT)[2:nrow(callMAT),1:3] %>%
 
 Want to store your API key in a separate file? Try something like this:
 
-```{json}
+```{.json}
 {
     "api_key": "as;dflkadsghlaksjhdf;"
 }
