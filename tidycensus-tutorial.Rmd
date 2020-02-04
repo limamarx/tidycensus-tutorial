@@ -124,7 +124,55 @@ ggplot(tract_edu_df) +
 mapview(tract_edu_df, zcol = "college_completion_percent", legend = TRUE)
 ```
 
-# 
+# Another example: unmarried-partner households
+
+Table `B11009` 
+
+We can get every variable in the table at once by using the `table` argument instead of the `variable` argument. 
+
+```{r}
+# get the table
+tract_hh <- get_acs("tract",
+                    table = "B11009",
+                    summary_var = "B11009_001",
+                    year = 2018,
+                    state = "WA",
+                    county = "King",
+                    geometry = TRUE, 
+                    survey = "acs5")
+
+# wouldn't it be nice if the variables had labels?
+table_b11009 <-
+    var_df %>%
+    filter(str_starts(name, "B11009")) %>%
+    mutate(short_label = str_split(label, "!!"), 
+           short_label = map_chr(short_label, tail, 1)) %>%
+    select(name, short_label)
+
+tract_hh <- 
+    tract_hh %>%
+    left_join(table_b11009, by = c("variable" = "name"))
+
+# calculate proportions
+tract_hh_prop <- 
+    tract_hh %>% 
+    mutate(prop = estimate/summary_est, 
+           prop_moe = moe_prop(estimate, summary_est, 
+                               moe, summary_moe))
+
+# make a map
+tract_hh_prop %>%
+    filter(short_label %in% c(
+        "Male householder and male partner", 
+        "Female householder and female partner"
+    )) %>%
+    ggplot() +
+    geom_sf(aes(fill = prop), size = .25) +
+    facet_wrap(vars(short_label)) +
+    scale_fill_viridis_c() + 
+    theme_void()
+
+```
 
 # Working with geometries using `tigris`
 
@@ -147,15 +195,32 @@ ggplot(seattle) +
     theme_minimal() 
 ```
 
-Doesn't that shape look familiar? No? Let's *intersect* it with the King County tracts
+Doesn't that shape look familiar? No? 
+
+Let's *intersect* it with the King County tracts: 
 
 ```{r}
 # TODO: figure out how to fix the various warnings
 # https://gis.stackexchange.com/questions/303126/how-to-buffer-a-pair-of-longitude-and-latitude-coordinates-in-r
-seattle_tracts <- st_intersection(st_buffer(tract_edu_df, 1e-5), seattle) 
+seattle_tracts <- st_intersection(st_buffer(tract_hh_prop, 1e-5), seattle) 
+```
 
+```{r}
 ggplot(seattle_tracts) + 
     geom_sf(fill = "white") + 
     theme_minimal() 
+```
+
+```{r}
+seattle_tracts %>%
+    filter(short_label %in% c(
+        "Male householder and male partner", 
+        "Female householder and female partner"
+    )) %>%
+    ggplot() +
+    geom_sf(aes(fill = prop), size = .25) +
+    facet_wrap(vars(short_label)) +
+    scale_fill_viridis_c() + 
+    theme_void()
 ```
 
