@@ -7,7 +7,9 @@ output: html_document
 
 # What is `tidycensus`?
 
-`tidycensus` is an `R` package that allows users to interface with the US Census Bureau's decennial Census and five-year American Community __APIs__ and return tidyverse-ready data frames.
+`tidycensus` is an `R` package that allows users to interface with the US Census Bureau's decennial Census and five-year American Community __APIs__ and return tidyverse-ready data frames. 
+
+`tidycensus` is created and maintained by Kyle Walker, a professor in geography at TCU.
 
 # The census has an API???
 
@@ -23,7 +25,7 @@ library(jsonlite)
 # For this tutorial you should have obtained a census API key
 # you can replace the line below with your own key 
 # myKey <- "my_census_api_key"
-myKEY <- read_json("../hall_replication_study/keys/acs.json")$api_key
+myKEY <- read_json("acs.json")$api_key
 
 url  <- "https://api.census.gov"
 path <- "/data/2018/acs/acs1/"
@@ -35,6 +37,15 @@ colnames(callMAT) <- callMAT[1,]
 as_tibble(callMAT)[2:nrow(callMAT),1:3] %>%
     mutate(B01001_001E = as.numeric(B01001_001E)) %>%
     arrange(NAME)
+```
+
+
+Want to store your API key in a separate file? Try something like this:
+
+```{json}
+{
+    "api_key": "as;dflkadsghlaksjhdf;"
+}
 ```
 
 ### Using `tidycensus`
@@ -64,7 +75,7 @@ get_acs(
 1. The API doesn't contain your desired product (pre 2011 ACS & pre 90 census)  
 2. Need access to microdata :(  
 
-# Lets try an example
+# Let's try an example
 
 For this tutorial we will run through an example of how you would go about getting data from the census API when you have a research idea but aren't sure what the proper codes are for a given census year or ACS. For this example we will use the 2018 ACS 5 year to get information about the educational attainment of census tracts in king county. 
 
@@ -92,7 +103,7 @@ tmp <- capture.output(raw_tract_edu_df <- get_acs(
 ## Manipulating the Data or: How I Learned to Stop Worrying and Love the `tidyverse`  
 
 ```{R message=FALSE, warning=FALSE}
-tract_edu_df <- raw_tract_edu_df %>%
+tract_edu_df <- raw_tract_edu_df %>% 
     select(-moe) %>% 
     spread(key = variable, value = estimate) %>%
     mutate(college_completion_percent = Bachelor / Total)
@@ -111,5 +122,40 @@ ggplot(tract_edu_df) +
 
 ```{R message=FALSE, warning=FALSE}
 mapview(tract_edu_df, zcol = "college_completion_percent", legend = TRUE)
+```
+
+# 
+
+# Working with geometries using `tigris`
+
+The `tidycensus` package uses the `tigris` package under the hood to get the geometries for spatial units, but not every kind of unit is covered. For those that aren't, you can use `tigris` directly. For instance, here's how to get the boundaries for a certain place called "Seattle": 
+
+```{r}
+library(tigris)
+options(tigris_use_cache = TRUE)
+
+# load places in Washington
+wa <- places("WA", year = 2018, class = "sf")
+
+# filter to Seattle
+seattle <- 
+    wa %>%
+    filter(NAME == "Seattle")
+
+ggplot(seattle) + 
+    geom_sf(fill = "transparent") + 
+    theme_minimal() 
+```
+
+Doesn't that shape look familiar? No? Let's *intersect* it with the King County tracts
+
+```{r}
+# TODO: figure out how to fix the various warnings
+# https://gis.stackexchange.com/questions/303126/how-to-buffer-a-pair-of-longitude-and-latitude-coordinates-in-r
+seattle_tracts <- st_intersection(st_buffer(tract_edu_df, 1e-5), seattle) 
+
+ggplot(seattle_tracts) + 
+    geom_sf(fill = "white") + 
+    theme_minimal() 
 ```
 
