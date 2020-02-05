@@ -10,6 +10,7 @@ output:
         fig_width: 6
         toc: true
         toc_float: true
+knit: (function(input, encoding) rmarkdown::render(input, output_file = "index.html"))
 ---
 
 ```{r include=FALSE}
