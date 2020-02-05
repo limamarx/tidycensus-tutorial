@@ -30,7 +30,6 @@ Yes but with limitations. While the Census does offer programatic access to some
 ### Before `tidycensus`
 
 ```{R load, message=FALSE, warning=FALSE}
-library(httr)
 library(tidyverse)
 library(jsonlite)
 
@@ -68,9 +67,10 @@ library(sf)
 library(mapview)
 census_api_key(myKEY)
 
-get_acs(
-    geography = "state", variables = c("Total Population" = "B01001_001"),
-    year = 2018, survey = "acs1")
+get_acs(geography = "state", 
+        variables = c("Total Population" = "B01001_001"),
+        year = 2018, 
+        survey = "acs1")
 ```
 
 # When and when not to use the `tidycensus` api
@@ -91,7 +91,7 @@ get_acs(
 
 For this tutorial we will run through several examples of how you would go about getting data from the census API when you have a research idea but aren't sure what the proper codes are for a given census year or ACS. For this example we will use the 2018 ACS 5 year to get information about the educational attainment of census tracts in king county. 
 
-```{R message=FALSE, warning=FALSE}
+```{R message=FALSE, warning=FALSE, results='hide'}
 # Download the Variable dictionary
 var_df <- load_variables(2018, "acs5", cache = TRUE)
 
@@ -101,15 +101,14 @@ var_df <- load_variables(2018, "acs5", cache = TRUE)
 
 var_selection <- c(Bachelor = "B15003_022")
 
-tmp <- capture.output(raw_tract_edu_df <- get_acs(
-    "tract",
-    variables = var_selection,
-    summary_var = "B15003_001",
-    state = "WA",
-    county = "King",
-    geometry = TRUE,
-    moe = 95,
-    cache_table = TRUE))
+raw_tract_edu_df <- get_acs("tract",
+                            variables = var_selection,
+                            summary_var = "B15003_001",
+                            state = "WA",
+                            county = "King",
+                            geometry = TRUE,
+                            moe = 95,
+                            cache_table = TRUE)
 
 ```
 
@@ -149,20 +148,18 @@ mapview(tract_edu_df, zcol = "college_completion_prop", legend = TRUE)
 
 # Another example: unmarried-partner households and cleaning boundary data
 
-Table `B11009` 
+Table `B11009` contains information about unmarried-partner households. We can get every variable in the table at once by using the `table` argument instead of the `variable` argument. 
 
-We can get every variable in the table at once by using the `table` argument instead of the `variable` argument. 
-
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, results='hide'}
 # get the table
-tmp <- capture.output(tract_hh <- get_acs("tract",
+tract_hh <- get_acs("tract",
                     table = "B11009",
                     summary_var = "B11009_001",
                     year = 2018,
                     state = "WA",
                     county = "King",
                     geometry = TRUE, 
-                    survey = "acs5"))
+                    survey = "acs5")
 
 # wouldn't it be nice if the variables had labels?
 table_b11009 <-
@@ -182,7 +179,9 @@ tract_hh_prop <-
     mutate(prop = estimate/summary_est, 
            prop_moe = moe_prop(estimate, summary_est, 
                                moe, summary_moe))
+```
 
+```{r}
 # make a map
 tract_hh_prop %>%
     filter(short_label %in% c(
@@ -207,7 +206,7 @@ options(tigris_use_cache = TRUE)
 
 # load places in Washington
 wa <- places("WA", year = 2018, class = "sf")
-# get the wate bodies of king county
+# get the water bodies of King County
 king_water <- area_water("WA", "King", class = "sf") 
 
 # filter to Seattle
@@ -225,10 +224,8 @@ Doesn't that shape look familiar? No?
 Let's *intersect* it with the King County tracts and remove the bodies of water from the final product: 
 
 ```{r message=FALSE, warning=FALSE}
-# TODO: figure out how to fix the various warnings
-# https://gis.stackexchange.com/questions/303126/how-to-buffer-a-pair-of-longitude-and-latitude-coordinates-in-r
-
-seattle_tracts <- tract_hh_prop %>%
+seattle_tracts <- 
+    tract_hh_prop %>%
     # add some wiggle room around shape
     st_buffer(1e-5) %>%
     # cut the outline of Seattle
@@ -258,12 +255,12 @@ seattle_tracts %>%
 
 # Creating Time Series Data: Income Example  
 
-Because of the way that the API is ocnstructed each year of the census and ACS have different endpoints. This means that you will have to make multiple calls to the API, our `get_acs` function, in order to get all desired years of a particular variable. Lucky for us within the ACS variable definitions are pretty consistent.
+Because of the way that the API is constructed, each year of the census and ACS has a different endpoint. This means that you will have to make multiple calls to the API, our `get_acs` function, in order to get all desired years of a particular variable. Lucky for us, within the ACS variable definitions are pretty consistent.
 
 ```{r message=FALSE, warning=FALSE}
 years <- c(2012, 2014, 2016, 2018)
 
-all_var_df <- bind_rows(lapply(years, function(x){
+all_var_df <- bind_rows(lapply(years, function(x) {
   load_variables(x, "acs1", cache = TRUE) %>%
         mutate(YEAR = x)
 }))
@@ -291,25 +288,28 @@ inc_df <- raw_inc_df %>%
 
 ```{r message=FALSE, warning=FALSE}
 inc_df %>%
-    ggplot(aes(x = Year, y = estimate, ymin = inc_lwr, ymax = inc_upr, group = variable)) +
+    ggplot(aes(x = Year, y = estimate, ymin = inc_lwr, ymax = inc_upr, 
+               group = variable)) +
     geom_line(aes(color = variable)) +
     geom_point(aes(color = variable)) +
     geom_ribbon(aes(fill = variable), alpha = .4) +
     theme_classic() +
     ggtitle("Median Household Income King County") +
     scale_fill_manual(values=c("#b7a57a", "#4b2e83", "#000000", "#DCDCDC")) +
-    scale_color_manual(values=c("#b7a57a", "#4b2e83", "#000000", "#DCDCDC"))
+    scale_color_manual(values=c("#b7a57a", "#4b2e83", "#000000", "#DCDCDC")) +
+    scale_y_continuous(labels = scales::dollar)
 ```
 
 ```{r message=FALSE, warning=FALSE}
 raw_inc_df %>%
     pivot_wider(names_from = variable, values_from = estimate:moe) %>%
     mutate(ratio = estimate_Black/estimate_White) %>%
-    mutate(moe = moe_ratio(estimate_Black, estimate_White, moe_Black, moe_White)) %>%
+    mutate(moe = moe_ratio(estimate_Black, estimate_White, 
+                           moe_Black, moe_White)) %>%
     ggplot(aes(x = Year, y = ratio, ymin = ratio - moe, ymax = ratio + moe)) +
     geom_line() +
     geom_point() +
     geom_ribbon(alpha = .4) +
     theme_classic() +
-    ggtitle("Black White Median Household Income Ratio")
+    ggtitle("Black-White Median Household Income Ratio")
 ```
